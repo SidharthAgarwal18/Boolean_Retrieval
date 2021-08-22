@@ -8,15 +8,13 @@ def return_stoplist(stoplist_path):
 	lines = file.readlines()
 	return lines
 
-num_arguments = len(sys.argv)
-collection_path = sys.argv[1]
 
+num_arguments = len(sys.argv)
+collection_path = sys.argv[1]				# 0th index argument is .py filename
 
 xml_tags = ["HEAD","TEXT"]
 stopwords_list = return_stoplist(sys.argv[3]) if num_arguments>=4 else []
 
-
-tags_terms_list = []
 document_index = 0
 document_hash = {}
 dictionary = {}
@@ -25,32 +23,43 @@ dictionary = {}
 collection = os.listdir(collection_path)
 
 for file_name in collection:
-
+	
 	file = open(collection_path+file_name,"r")
 	file_string = file.read()
+
 	contents = BeautifulSoup(file_string,'xml')
+	documents = contents.find_all("DOC")
 
-	document_names = contents.find_all("DOCNO")
+	for document in documents:
 
-	for tag in xml_tags:
-		tags_terms_list.append(contents.find_all(tag))
+		docno = document.find_all("DOCNO")
+		if(len(docno)==0):
+			continue
 
-	for index in range(len(document_names)):
-		document_hash[document_index] = document_names[index].get_text()
+		document_hash[document_index] = docno[0].get_text()
+		document_terms_list = []
+
+
+		for tag in xml_tags:
+			tag_blocks = document.find_all(tag)
+
+			for tag_block in tag_blocks:
+				tag_string = tag_block.get_text()
+				tag_term_list = re.split(' ',tag_string)
+
+				document_terms_list = document_terms_list + tag_term_list
+
+		for term in document_terms_list:
+
+			if(term not in stopwords_list):
+
+				if(term not in dictionary):
+					dictionary[term] = [document_index]
+
+				elif(dictionary[term][-1]!=document_index):
+					dictionary[term].append(document_index)
+
 		document_index += 1
 
-		for tag in range(len(tags_terms_list)):
-			terms_string = tags_terms_list[tag][index].get_text()
-			terms_list = re.split(' ',terms_string)
-
-			for term in terms_list:
-				if(term not in stopwords_list):
-
-					if(term not in dictionary):
-						dictionary[term] = [document_index]
-
-					elif(dictionary[term][-1]!=document_index):
-						dictionary[term].append(document_index)
 	file.close()
-	tags_terms_list = []
 
