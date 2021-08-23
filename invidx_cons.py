@@ -14,8 +14,8 @@ def compression0(dictionary,index_file_name):
 		length = len(dictionary[index])
 		file.write((length).to_bytes(4,byteorder='big'))
 		
-		for id in dictionary[index]:
-			file.write(id.to_bytes(4,byteorder='big'))
+		for idx in dictionary[index]:
+			file.write(idx.to_bytes(4,byteorder='big'))
 	file.close()
 
 def encode1(number,file):
@@ -50,11 +50,69 @@ def compression1(dictionary,index_file_name):
 		encode1(length,file)
 
 		previous = 0 							# gap encoding
-		for id in dictionary[index]:
-			encode1(id-previous,file)
-			previous = id
+		for idx in dictionary[index]:
+			encode1(idx-previous,file)
+			previous = idx
 	file.close()
 
+def encode2(number,file):
+
+	l_x = len(bin(number)[2:])
+	ll_x = len(bin(l_x)[2:])
+
+	Ull_x = ""
+	i = 1
+	while(i<ll_x):
+		Ull_x = Ull_x + "1"
+		i = i + 1
+	Ull_x = Ull_x + "0"
+
+	compressed_bin_str = Ull_x + (bin(l_x)[2:])[1:] + (bin(number)[2:])[1:]
+	compressed_bin = int(compressed_bin_str,2)
+
+	bytes_needed = (len(bin(compressed_bin)[2:])//8) + 1
+	file.write(compressed_bin.to_bytes(bytes_needed,byteorder='big'))
+
+
+def compression2(dictionary,index_file_name):
+
+	file = open(index_file_name+'.idx','wb')
+	compression_type = 2
+	file.write(compression_type.to_bytes(1,byteorder='big'))
+	encode2(len(dictionary.keys()),file)
+
+	for index in (dictionary.keys()):
+		length = len(dictionary[index])
+		encode2(length,file)
+
+		previous = 0 							# gap encoding
+		for idx in dictionary[index]:
+			encode2(idx-previous,file)
+			previous = idx
+	file.close()
+	
+
+def compression3(dictionary,index_file_name):
+
+	file = open(index_file_name+'_temp'+'.idx','wb')
+	compression_type = 3
+
+	file.write(compression_type.to_bytes(1,byteorder='big'))
+	file.write(len(dictionary.keys()).to_bytes(4,byteorder='big'))
+
+	for index in (dictionary.keys()):
+
+		length = len(dictionary[index])
+		file.write((length).to_bytes(4,byteorder='big'))
+		
+		previous = 0
+		for idx in dictionary[index]:
+			file.write((idx-previous).to_bytes(4,byteorder='big'))
+			previous = idx
+	file.close()
+
+	os.system("python -m snappy -c "+index_file_name+"_temp.idx "+index_file_name+".idx")
+	os.remove(index_file_name+"_temp.idx")
 
 
 def return_stoplist(stoplist_path):
