@@ -1,3 +1,4 @@
 tipster-ap-frac/
 documents/
-
+*.idx
+*.dict
