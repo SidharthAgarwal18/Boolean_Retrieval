@@ -2,6 +2,7 @@ import sys
 import os
 from bs4 import BeautifulSoup
 import re
+import time
 
 def compression0(dictionary,index_file_name):
 
@@ -19,6 +20,11 @@ def compression0(dictionary,index_file_name):
 	file.close()
 
 def encode1(number,file):
+
+	if(number==0):
+		file.write(number.to_bytes(1,byteorder='big'))
+		return 
+
 	stack = []
 	first = True
 
@@ -43,6 +49,7 @@ def compression1(dictionary,index_file_name):
 	file = open(index_file_name+'.idx','wb')
 	compression_type = 1
 	file.write(compression_type.to_bytes(1,byteorder='big'))
+
 	encode1(len(dictionary.keys()),file)
 
 	for index in (dictionary.keys()):
@@ -55,7 +62,7 @@ def compression1(dictionary,index_file_name):
 			previous = idx
 	file.close()
 
-def encode2(number,file):
+def encode2(previous_last,number,file):
 
 	l_x = len(bin(number)[2:])
 	ll_x = len(bin(l_x)[2:])
@@ -67,11 +74,21 @@ def encode2(number,file):
 		i = i + 1
 	Ull_x = Ull_x + "0"
 
-	compressed_bin_str = Ull_x + (bin(l_x)[2:])[1:] + (bin(number)[2:])[1:]
-	compressed_bin = int(compressed_bin_str,2)
+	compressed_bin_str = previous_last + Ull_x + (bin(l_x)[2:])[1:] + (bin(number)[2:])[1:]
 
-	bytes_needed = (len(bin(compressed_bin)[2:])//8) + 1
-	file.write(compressed_bin.to_bytes(bytes_needed,byteorder='big'))
+	bytes_needed = (len(compressed_bin_str)//8)
+	bits_left = (len(compressed_bin_str)%8)
+
+	if(bits_left==0):
+		temp_last = ""
+	else:
+		temp_last = compressed_bin_str[(len(compressed_bin_str)-bits_left):]
+		compressed_bin_str = compressed_bin_str[0:(len(compressed_bin_str)-bits_left)]
+
+	if compressed_bin_str!="":
+		file.write(int(compressed_bin_str,2).to_bytes(bytes_needed,byteorder='big'))
+
+	return temp_last
 
 
 def compression2(dictionary,index_file_name):
@@ -79,16 +96,25 @@ def compression2(dictionary,index_file_name):
 	file = open(index_file_name+'.idx','wb')
 	compression_type = 2
 	file.write(compression_type.to_bytes(1,byteorder='big'))
-	encode2(len(dictionary.keys()),file)
+
+	previous_last = encode2("",len(dictionary.keys()),file)
 
 	for index in (dictionary.keys()):
 		length = len(dictionary[index])
-		encode2(length,file)
+		previous_last = encode2(previous_last,length,file)
 
 		previous = 0 							# gap encoding
 		for idx in dictionary[index]:
-			encode2(idx-previous,file)
+			previous_last = encode2(previous_last,idx-previous,file)
 			previous = idx
+
+	if previous_last!="":
+		bits_left = 8 - len(previous_last)
+		final_bin = int(previous_last,2)
+		final_bin = final_bin<<bits_left
+
+		file.write(final_bin.to_bytes(1,byteorder='big'))
+
 	file.close()
 	
 
@@ -115,64 +141,69 @@ def compression3(dictionary,index_file_name):
 	os.remove(index_file_name+"_temp.idx")
 
 
-def return_stoplist(stoplist_path):
+def return_stopset(stoplist_path):
 	file = open(stoplist_path,"r")
 	Lines = file.read()
 	lines = re.split('\n',Lines)
-	return lines
 
+	stop_set = set()
+	for line in lines:
+		stop_set.add(line)
+
+	return stop_set
+
+
+START_TIME = time.time()
 
 num_arguments = len(sys.argv)
 collection_path = sys.argv[1]				# 0th index argument is .py filename
-
-
 index_file_name = sys.argv[2]
-stopwords_list = return_stoplist(sys.argv[3]) if num_arguments>=4 else []
+stopwords_set = return_stopset(sys.argv[3]) if num_arguments>=4 else []
 compression = int(sys.argv[4])
-xml_tags = ["HEAD","TEXT"]
+xml_tags = return_xml(sys.argv[5]) if num_arguments>=6 else ["DOCNO","HEAD","TEXT"]
 
-document_index = 0
+
+document_index = 1
 document_hash = {}
 dictionary = {}
 
-
 collection = os.listdir(collection_path)
 
-for file_name in collection:
 
-	if(file_name=="ap890520"):
-		continue
+for file_name in collection:
 
 	file = open(collection_path+file_name,"r")
 	file_string = file.read()
 
-	contents = BeautifulSoup(file_string,'xml')
-	documents = contents.find_all("DOC")
+	documents = re.split("</DOC>",file_string)
 
 	for document in documents:
 
-		docno = document.find_all("DOCNO")
+		if document=="":
+			continue
+
+		document = document + "</DOC>"
+		document = BeautifulSoup(document,'xml')
+
+		docno = document.find_all("DOCNO",limit=1)
 		if(len(docno)==0):
 			continue
 
 		document_hash[document_index] = docno[0].get_text()
 		document_terms_list = []
 
+		tag_blocks = document.find_all(xml_tags[1:])
 
-		for tag in xml_tags:
-			tag_blocks = document.find_all(tag)
-
-			for tag_block in tag_blocks:
-				tag_string = tag_block.get_text()
-				tag_term_list = re.split(' |,|\\.|\n|:|;|"|\'',tag_string)
-
-				document_terms_list = document_terms_list + tag_term_list
+		for tag_block in tag_blocks:
+			tag_string = tag_block.get_text()
+			tag_term_list = re.split(' |,|\\.|\n|:|;|"|`|\'',tag_string)
+			document_terms_list = document_terms_list + tag_term_list
 
 		for term in document_terms_list:
 
-			if(term not in stopwords_list):
+			if(term not in stopwords_set and term!=""):
 
-				if(term not in dictionary):
+				if(dictionary.get(term)==None):
 					dictionary[term] = [document_index]
 
 				elif(dictionary[term][-1]!=document_index):
@@ -182,6 +213,8 @@ for file_name in collection:
 
 	file.close()
 
+print("Time for reading files: "+str(time.time()-START_TIME))
+
 if(compression==0):
 	compression0(dictionary,index_file_name)
 elif(compression==1):
@@ -190,3 +223,13 @@ elif(compression==2):
 	compression2(dictionary,index_file_name)
 elif(compression==3):
 	compression3(dictionary,index_file_name)
+
+print("Total number of tokens: "+str(len(dictionary.keys())))
+print("Total number of documents: "+str(document_index-1))
+print("Total time taken: "+str(time.time()-START_TIME))
+
+print_keys = list(dictionary.keys())
+for index in range(5):
+	print(dictionary[print_keys[index]])
+	print('\n')
+
