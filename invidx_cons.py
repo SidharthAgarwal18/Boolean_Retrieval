@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import re
 import time
 import json
+from stemmar import PorterStemmer
 
 def map_documents(file,document_hash):
 	bytes_used = 0
@@ -251,6 +252,25 @@ def return_stopset(stoplist_path):
 
 	return stop_set
 
+def stem_token(token,porter):
+	output = ''
+	word = ''
+
+	for char in token:
+		if char.isalpha():
+			word += char.lower()
+		else:
+			if word:
+				output += porter.stem(word,0,len(word)-1)
+				word = ''
+			output += char.lower()
+	if word:
+		output += porter.stem(word,0,len(word)-1)
+
+	#print(term+"___ "+output)
+	return output
+
+
 
 START_TIME = time.time()
 
@@ -261,6 +281,7 @@ stopwords_set = return_stopset(sys.argv[3]) if num_arguments>=4 else []
 compression = int(sys.argv[4])
 xml_tags = return_xml(sys.argv[5]) if num_arguments>=6 else ["DOCNO","HEAD","TEXT"]
 
+porter = PorterStemmer()
 
 document_index = 1
 document_hash = {}
@@ -301,6 +322,8 @@ for file_name in collection:
 		for term in document_terms_list:
 
 			if(term not in stopwords_set and term!=""):
+
+				term = stem_token(term,porter)
 
 				if(dictionary.get(term)==None):
 					dictionary[term] = [document_index]
