@@ -270,6 +270,12 @@ def stem_token(token,porter):
 	#print(term+"___ "+output)
 	return output
 
+def return_xml(xml_filename):
+	file = open(xml_filename,"r")
+	Lines = file.read()
+	lines = re.split('\n',Lines)
+	return lines
+
 
 
 START_TIME = time.time()
@@ -316,7 +322,7 @@ for file_name in collection:
 
 		for tag_block in tag_blocks:
 			tag_string = tag_block.get_text()
-			tag_term_list = re.split(' |,|\\.|\n|:|;|"|`|\'',tag_string)
+			tag_term_list = re.split(' |,|\\.|\n|:|;|"|`|\'|(|)|{|}|[|]',tag_string)
 			document_terms_list = document_terms_list + tag_term_list
 
 		for term in document_terms_list:
