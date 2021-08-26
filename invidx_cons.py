@@ -3,27 +3,43 @@ import os
 from bs4 import BeautifulSoup
 import re
 import time
+import json
 
 def compression0(dictionary,index_file_name):
+
+	token_dictionary = {}
+	bytes_pointer = 0
 
 	file = open(index_file_name+'.idx','wb')
 	compression_type = 0
 	file.write(compression_type.to_bytes(1,byteorder='big'))
 	file.write(len(dictionary.keys()).to_bytes(4,byteorder='big'))
 
+	bytes_pointer += 5
+
 	for index in (dictionary.keys()):
+
+		token_dictionary[index] = bytes_pointer
+
 		length = len(dictionary[index])
 		file.write((length).to_bytes(4,byteorder='big'))
+		bytes_pointer += 4
 		
 		for idx in dictionary[index]:
 			file.write(idx.to_bytes(4,byteorder='big'))
+			bytes_pointer += 4
+
+	file.close()
+
+	file = open(index_file_name+'.dict','w')
+	json.dump(token_dictionary,file)
 	file.close()
 
 def encode1(number,file):
 
 	if(number==0):
 		file.write(number.to_bytes(1,byteorder='big'))
-		return 
+		return 1
 
 	stack = []
 	first = True
@@ -40,26 +56,43 @@ def encode1(number,file):
 
 		stack.append(temp)
 
+	bytes_used = 0
+
 	while(len(stack)>0):
 		file.write(stack.pop().to_bytes(1,byteorder='big'))
+		bytes_used += 1
+
+	return bytes_used
 
 
 def compression1(dictionary,index_file_name):
+
+	token_dictionary = {}
+	bytes_pointer = 0
 
 	file = open(index_file_name+'.idx','wb')
 	compression_type = 1
 	file.write(compression_type.to_bytes(1,byteorder='big'))
 
-	encode1(len(dictionary.keys()),file)
+	bytes_pointer += 1
+
+	bytes_pointer += encode1(len(dictionary.keys()),file)
 
 	for index in (dictionary.keys()):
+
+		token_dictionary[index] = bytes_pointer
+
 		length = len(dictionary[index])
-		encode1(length,file)
+		bytes_pointer += encode1(length,file)
 
 		previous = 0 							# gap encoding
 		for idx in dictionary[index]:
-			encode1(idx-previous,file)
+			bytes_pointer += encode1(idx-previous,file)
 			previous = idx
+	file.close()
+
+	file = open(index_file_name+'.dict','w')
+	json.dump(token_dictionary,file)
 	file.close()
 
 def encode2(previous_last,number,file):
@@ -88,37 +121,60 @@ def encode2(previous_last,number,file):
 	if compressed_bin_str!="":
 		file.write(int(compressed_bin_str,2).to_bytes(bytes_needed,byteorder='big'))
 
-	return temp_last
+	return (temp_last,bytes_needed)
 
 
 def compression2(dictionary,index_file_name):
+
+	token_dictionary = {}
+	bytes_pointer = 0
 
 	file = open(index_file_name+'.idx','wb')
 	compression_type = 2
 	file.write(compression_type.to_bytes(1,byteorder='big'))
 
-	previous_last = encode2("",len(dictionary.keys()),file)
+	bytes_pointer += 1
+
+	previous_last,temp_pointer = encode2("",len(dictionary.keys()),file)
+	bytes_pointer += temp_pointer
 
 	for index in (dictionary.keys()):
+
+		token_dictionary[index] = bytes_pointer
+
 		length = len(dictionary[index])
-		previous_last = encode2(previous_last,length,file)
+		previous_last,temp_pointer = encode2(previous_last,length,file)
+		bytes_pointer += temp_pointer
 
 		previous = 0 							# gap encoding
 		for idx in dictionary[index]:
-			previous_last = encode2(previous_last,idx-previous,file)
+
+			previous_last,temp_pointer = encode2(previous_last,idx-previous,file)
+			bytes_pointer += temp_pointer
 			previous = idx
 
-	if previous_last!="":
-		bits_left = 8 - len(previous_last)
-		final_bin = int(previous_last,2)
-		final_bin = final_bin<<bits_left
+		if previous_last!="":
 
-		file.write(final_bin.to_bytes(1,byteorder='big'))
+			bits_left = 8 - len(previous_last)
+			final_bin = int(previous_last,2)
+			final_bin = final_bin<<bits_left
+
+			file.write(final_bin.to_bytes(1,byteorder='big'))
+
+			bytes_pointer += 1
+			previous_last = ""
 
 	file.close()
-	
+
+	file = open(index_file_name+'.dict','w')
+	json.dump(token_dictionary,file)
+	file.close()	
+
 
 def compression3(dictionary,index_file_name):
+
+	token_dictionary = {}
+	bytes_pointer = 0
 
 	file = open(index_file_name+'_temp'+'.idx','wb')
 	compression_type = 3
@@ -126,19 +182,31 @@ def compression3(dictionary,index_file_name):
 	file.write(compression_type.to_bytes(1,byteorder='big'))
 	file.write(len(dictionary.keys()).to_bytes(4,byteorder='big'))
 
+	bytes_pointer += 5
+
 	for index in (dictionary.keys()):
+
+		token_dictionary[index] = bytes_pointer
 
 		length = len(dictionary[index])
 		file.write((length).to_bytes(4,byteorder='big'))
+
+		bytes_pointer += 4
 		
 		previous = 0
 		for idx in dictionary[index]:
 			file.write((idx-previous).to_bytes(4,byteorder='big'))
 			previous = idx
+			bytes_pointer += 4
+
 	file.close()
 
 	os.system("python -m snappy -c "+index_file_name+"_temp.idx "+index_file_name+".idx")
 	os.remove(index_file_name+"_temp.idx")
+
+	file = open(index_file_name+'.dict','w')
+	json.dump(token_dictionary,file)
+	file.close()
 
 
 def return_stopset(stoplist_path):
@@ -229,7 +297,7 @@ print("Total number of documents: "+str(document_index-1))
 print("Total time taken: "+str(time.time()-START_TIME))
 
 print_keys = list(dictionary.keys())
-for index in range(5):
+for index in [107,1007,1792,728,693]:
 	print(dictionary[print_keys[index]])
 	print('\n')
 

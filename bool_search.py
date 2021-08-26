@@ -1,25 +1,22 @@
 import sys
 import os
+import json
+import re
 
-def decode0(file):
+def decode0(bytes_pointer,indexfile_name):
 
-	dictionary_keys_len = int.from_bytes(file.read(4),byteorder='big')
-	stopping_dic = {}
+	file = open(indexfile_name,"rb")
+	file.seek(bytes_pointer,0)
 
-	for key in range(dictionary_keys_len):
+	list_len = int.from_bytes(file.read(4),byteorder='big')
+	this_posting_list = []
 
-		list_len = int.from_bytes(file.read(4),byteorder='big')
-		stopping_dic[key] = []
-
-		for idx in range(list_len):
-			document_id = int.from_bytes(file.read(4),byteorder='big')
-			stopping_dic[key].append(document_id)
-
-	for index in range(5):
-		print(stopping_dic[index])
-		print('\n')
+	for idx in range(list_len):
+		document_id = int.from_bytes(file.read(4),byteorder='big')
+		this_posting_list.append(document_id)
 
 	file.close()
+	return this_posting_list
 
 def decode1_next(file):
 
@@ -32,32 +29,22 @@ def decode1_next(file):
 
 	return number
 
-def decode1(file):
+def decode1(bytes_pointer,indexfile_name):
 
-	dictionary_keys_len = decode1_next(file)
-	stopping_dic = {}
-	
-	for key in range(dictionary_keys_len):
+	file = open(indexfile_name,"rb")
+	file.seek(bytes_pointer,0)
 
-		list_len = decode1_next(file)
-		stopping_dic[key] = []
+	list_len = decode1_next(file)
+	this_posting_list = []
 
-		previous = 0
-		for idx in range(list_len):
-			document_id = decode1_next(file) + previous
-			stopping_dic[key].append(document_id)
-			previous = document_id
-	
-	#for index in range(5):
-	#	print(stopping_dic[index])
-	#	print('\n')
-
-	#print(file.read(1))
-	#print(file.read(1))
-	#print(file.read(1))
-	#print(file.read(1))
+	previous = 0
+	for idx in range(list_len):
+		document_id = decode1_next(file) + previous
+		this_posting_list.append(document_id)
+		previous = document_id
 
 	file.close()
+	return this_posting_list
 
 def extend_strbyte(small_str):
 	x = 8 - len(small_str)
@@ -116,57 +103,165 @@ def decode2_next(file,new_first):
 	return decoded_number,return_str
 
 
-def decode2(file):
+def decode2(bytes_pointer,indexfile_name):
 
-	dictionary_keys_len,new_first = decode2_next(file,"")
+	file = open(indexfile_name,"rb")
+	file.seek(bytes_pointer,0)
 
-	stopping_dic = {}
+	list_len, new_first = decode2_next(file,"")
+	this_posting_list = []
 
-	for key in range(dictionary_keys_len):
-		list_len,new_first = decode2_next(file,new_first)
-		stopping_dic[key] = []
+	previous = 0
+	for idx in range(list_len):
 
-		previous = 0
-		for idx in range(list_len):
-			document_id,new_first = decode2_next(file,new_first) 
-			document_id += previous
-			stopping_dic[key].append(document_id)
-			previous = document_id
-
-	for index in range(5):
-		print(stopping_dic[index])
-		print('\n')
-
-	print(file.read(1))
-	print(file.read(1))
-	print(file.read(1))
-	print(file.read(1))
-
-def decode3(file):
-	dictionary_keys_len = int.from_bytes(file.read(4),byteorder='big')
-	stopping_dic = {}
-
-	for key in range(dictionary_keys_len):
-
-		list_len = int.from_bytes(file.read(4),byteorder='big')
-		stopping_dic[key] = []
-
-		previous = 0
-		for idx in range(list_len):
-			document_id = int.from_bytes(file.read(4),byteorder='big') + previous
-			stopping_dic[key].append(document_id)
-			previous = document_id
-
-	for index in range(5):
-		print(stopping_dic[index])
-		print('\n')
-
-	#print(file.read(1))
-	#print(file.read(1))
-	#print(file.read(1))
-	#print(file.read(1))
+		document_id, new_first = decode2_next(file,new_first)
+		this_posting_list.append(document_id+previous)
+		previous = document_id + previous
 
 	file.close()
+	return this_posting_list
+
+
+def decode3(bytes_pointer,indexfile_name):
+
+	file = open(indexfile_name,"rb")
+	file.seek(bytes_pointer,0)
+
+	list_len = int.from_bytes(file.read(4),byteorder='big')
+	this_posting_list = []
+
+	previous = 0
+	for idx in range(list_len):
+		document_id = int.from_bytes(file.read(4),byteorder='big') + previous
+		this_posting_list.append(document_id)
+		previous = document_id
+
+	file.close()
+	return this_posting_list
+
+
+def parse_queries(queryfile_name):
+
+	file = open(queryfile_name,'r')
+	query_list = []
+
+	query_lines = re.split('\n',file.read())
+
+	for query in query_lines:
+		query_list.append(re.split(' ',query))
+
+	file.close()
+	return query_list
+
+def binary_search(document_id,posting_list):
+
+	if posting_list==[]:
+		return False
+
+	start = 0
+	end = len(posting_list) - 1
+
+	while(start<end):
+		mid = start + (end-start)//2
+
+		if(posting_list[mid]==document_id):
+			return True
+		if(posting_list[mid]<document_id):
+			start = mid+1
+		else:
+			end = mid-1
+
+	if(posting_list[start]==document_id):
+		return True
+
+	return False
+
+def decompress(term,comp_type,posting_dictionary,token_dictionary,indexfile_name):
+
+	if(posting_dictionary.get(term)!=None):
+		return posting_dictionary[term]
+
+	bytes_pointer = token_dictionary[term]
+
+	if(comp_type==0):
+		posting_dictionary[term] = decode0(bytes_pointer,indexfile_name)
+	elif(comp_type==1):
+		posting_dictionary[term] = decode1(bytes_pointer,indexfile_name)
+	elif(comp_type==2):
+		posting_dictionary[term] = decode2(bytes_pointer,indexfile_name)
+	else:
+		posting_dictionary[term] = decode3(bytes_pointer,indexfile_name)
+
+	return posting_dictionary[term]
+
+def write_results(query_num,document_name,resultfile_name):
+	file = open(resultfile_name,"a")
+
+	file.write("Q"+str(query_num)+"\t")
+	file.write(str(document_name)+"\t")
+
+	if document_name != "NULL":
+		file.write(str(1.0)+"\n")
+	else:
+		file.write(str(0.0)+"\n")
+
+
+def answer_queries(query_list,comp_type,posting_dictionary,token_dictionary,indexfile_name,resultfile_name,document_mapping):
+	query_num = 0
+
+	file = open(resultfile_name,"w")
+	file.close()
+
+	for query_num,query in enumerate(query_list):
+
+		null_query = False
+
+		if(token_dictionary.get(query[0])==None):
+			null_query = True
+			write_results(query_num,"NULL",resultfile_name)
+			continue
+
+		first_list = decompress(query[0],comp_type,posting_dictionary,token_dictionary,indexfile_name)
+
+		if(len(query)==1):
+			write_results(query_num,first_list[0],resultfile_name)
+		else:
+			query_posting_lists = [first_list]
+			min_len = len(first_list)
+			min_list = first_list
+
+			for i in range(1,len(query)):
+
+				if(token_dictionary.get(query[i])==None):
+					null_query = True
+					break
+
+				temp_list = decompress(query[i],comp_type,posting_dictionary,token_dictionary,indexfile_name)
+				query_posting_lists.append(temp_list)
+
+				if min_len>len(temp_list):
+					min_list = temp_list
+					min_len = len(temp_list)
+
+			if null_query:
+				write_results(query_num,"NULL",resultfile_name)
+				continue
+
+			for document_id in min_list:
+				find_all = True
+
+				for this_qpl in query_posting_lists:
+					if(not binary_search(document_id,this_qpl)):
+						find_all = False
+						break
+
+				if(find_all):
+					write_results(query_num,document_id,resultfile_name)
+					break
+
+			if not find_all:
+				write_results(query_num,"NULL",resultfile_name)
+
 
 
 num_arguments = len(sys.argv)
@@ -176,26 +271,40 @@ resultfile_name = sys.argv[2]
 indexfile_name = sys.argv[3]
 dictfile_name = sys.argv[4]
 
+json_file = open(dictfile_name,"r")
+token_dictionary = json.load(json_file)
+json_file.close()
+
+posting_dictionary = {}
+
+
 file = open(indexfile_name,"rb")
 comp_type = int.from_bytes(file.read(1),byteorder='big')
-print(comp_type)
+new_indexfile_name = indexfile_name
 
-if(comp_type==0):
-	decode0(file)
-elif(comp_type==1):
-	decode1(file)
-elif(comp_type==2):
-	decode2(file)
-else:
+if(comp_type>2):
+	comp_type = 3
+
 	file.close()
 	os.system("python -m snappy -d "+indexfile_name+" "+indexfile_name+"_temp")
 
 	file = open(indexfile_name+"_temp","rb")
 	file.read(1)
+	new_indexfile_name = indexfile_name + '_temp'
 
-	decode3(file)
+file.close()
+
+
+query_list = parse_queries(queryfile_name)
+document_mapping = {}
+
+
+answer_queries(query_list,comp_type,posting_dictionary,token_dictionary,new_indexfile_name,resultfile_name,document_mapping)
+
+#toke_dict_keys = list(token_dictionary.keys())
+#for i in [107,1007,1792,728,693]:
+#	print(decode3(token_dictionary[toke_dict_keys[i]],new_indexfile_name))
+#	print('\n')
+
+if(comp_type>2):
 	os.remove(indexfile_name+"_temp")
-
-
-
-	
