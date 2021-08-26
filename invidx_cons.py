@@ -5,17 +5,40 @@ import re
 import time
 import json
 
-def compression0(dictionary,index_file_name):
+def map_documents(file,document_hash):
+	bytes_used = 0
+
+	total_documents = len(document_hash.keys())
+	file.write(total_documents.to_bytes(4,byteorder='big'))
+	bytes_used += 4
+
+	for idx in range(1,total_documents+1):
+
+		doc_name_len = len(document_hash[idx])
+		file.write(doc_name_len.to_bytes(1,byteorder='big'))
+		bytes_used += 1
+
+		for char in document_hash[idx]:
+			file.write(ord(char).to_bytes(1,byteorder='big'))
+			bytes_used+= 1
+
+	return bytes_used
+
+def compression0(dictionary,index_file_name,document_hash):
 
 	token_dictionary = {}
 	bytes_pointer = 0
 
 	file = open(index_file_name+'.idx','wb')
+
 	compression_type = 0
 	file.write(compression_type.to_bytes(1,byteorder='big'))
-	file.write(len(dictionary.keys()).to_bytes(4,byteorder='big'))
+	bytes_pointer += 1
 
-	bytes_pointer += 5
+	bytes_pointer += map_documents(file,document_hash)
+
+	file.write(len(dictionary.keys()).to_bytes(4,byteorder='big'))
+	bytes_pointer += 4
 
 	for index in (dictionary.keys()):
 
@@ -65,16 +88,18 @@ def encode1(number,file):
 	return bytes_used
 
 
-def compression1(dictionary,index_file_name):
+def compression1(dictionary,index_file_name,document_hash):
 
 	token_dictionary = {}
 	bytes_pointer = 0
 
 	file = open(index_file_name+'.idx','wb')
+
 	compression_type = 1
 	file.write(compression_type.to_bytes(1,byteorder='big'))
-
 	bytes_pointer += 1
+
+	bytes_pointer += map_documents(file,document_hash)
 
 	bytes_pointer += encode1(len(dictionary.keys()),file)
 
@@ -124,7 +149,7 @@ def encode2(previous_last,number,file):
 	return (temp_last,bytes_needed)
 
 
-def compression2(dictionary,index_file_name):
+def compression2(dictionary,index_file_name,document_hash):
 
 	token_dictionary = {}
 	bytes_pointer = 0
@@ -134,6 +159,8 @@ def compression2(dictionary,index_file_name):
 	file.write(compression_type.to_bytes(1,byteorder='big'))
 
 	bytes_pointer += 1
+
+	bytes_pointer += map_documents(file,document_hash)
 
 	previous_last,temp_pointer = encode2("",len(dictionary.keys()),file)
 	bytes_pointer += temp_pointer
@@ -171,18 +198,22 @@ def compression2(dictionary,index_file_name):
 	file.close()	
 
 
-def compression3(dictionary,index_file_name):
+def compression3(dictionary,index_file_name,document_hash):
 
 	token_dictionary = {}
 	bytes_pointer = 0
 
 	file = open(index_file_name+'_temp'+'.idx','wb')
-	compression_type = 3
 
+	compression_type = 3
 	file.write(compression_type.to_bytes(1,byteorder='big'))
+	bytes_pointer += 1
+
+	bytes_pointer += map_documents(file,document_hash)
+
 	file.write(len(dictionary.keys()).to_bytes(4,byteorder='big'))
 
-	bytes_pointer += 5
+	bytes_pointer += 4
 
 	for index in (dictionary.keys()):
 
@@ -284,20 +315,20 @@ for file_name in collection:
 print("Time for reading files: "+str(time.time()-START_TIME))
 
 if(compression==0):
-	compression0(dictionary,index_file_name)
+	compression0(dictionary,index_file_name,document_hash)
 elif(compression==1):
-	compression1(dictionary,index_file_name)
+	compression1(dictionary,index_file_name,document_hash)
 elif(compression==2):
-	compression2(dictionary,index_file_name)
+	compression2(dictionary,index_file_name,document_hash)
 elif(compression==3):
-	compression3(dictionary,index_file_name)
+	compression3(dictionary,index_file_name,document_hash)
 
 print("Total number of tokens: "+str(len(dictionary.keys())))
 print("Total number of documents: "+str(document_index-1))
 print("Total time taken: "+str(time.time()-START_TIME))
 
-print_keys = list(dictionary.keys())
-for index in [107,1007,1792,728,693]:
-	print(dictionary[print_keys[index]])
-	print('\n')
+#print_keys = list(dictionary.keys())
+#for index in [107,1007,1792,728,693]:
+#	print(dictionary[print_keys[index]])
+#	print('\n')
 

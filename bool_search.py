@@ -206,6 +206,22 @@ def write_results(query_num,document_name,resultfile_name):
 		file.write(str(0.0)+"\n")
 
 
+def return_doc_mapping(file):
+	document_hash = {}
+	total_documents = int.from_bytes(file.read(4),byteorder='big')
+
+	for doc_i in range(total_documents):
+		doc_name_len = int.from_bytes(file.read(1),byteorder='big')
+
+		name = ""
+		for name_idx in range(doc_name_len):
+			name = name + chr(int.from_bytes(file.read(1),byteorder='big'))
+
+		document_hash[doc_i+1] = name
+
+	return document_hash
+
+
 def answer_queries(query_list,comp_type,posting_dictionary,token_dictionary,indexfile_name,resultfile_name,document_mapping):
 	query_num = 0
 
@@ -224,7 +240,7 @@ def answer_queries(query_list,comp_type,posting_dictionary,token_dictionary,inde
 		first_list = decompress(query[0],comp_type,posting_dictionary,token_dictionary,indexfile_name)
 
 		if(len(query)==1):
-			write_results(query_num,first_list[0],resultfile_name)
+			write_results(query_num,document_mapping[(first_list[0])],resultfile_name)
 		else:
 			query_posting_lists = [first_list]
 			min_len = len(first_list)
@@ -256,7 +272,7 @@ def answer_queries(query_list,comp_type,posting_dictionary,token_dictionary,inde
 						break
 
 				if(find_all):
-					write_results(query_num,document_id,resultfile_name)
+					write_results(query_num,document_mapping[document_id],resultfile_name)
 					break
 
 			if not find_all:
@@ -292,12 +308,12 @@ if(comp_type>2):
 	file.read(1)
 	new_indexfile_name = indexfile_name + '_temp'
 
+
+document_mapping = return_doc_mapping(file)
 file.close()
 
 
 query_list = parse_queries(queryfile_name)
-document_mapping = {}
-
 
 answer_queries(query_list,comp_type,posting_dictionary,token_dictionary,new_indexfile_name,resultfile_name,document_mapping)
 
