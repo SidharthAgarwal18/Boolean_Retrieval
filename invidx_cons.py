@@ -267,7 +267,6 @@ def stem_token(token,porter):
 	if word:
 		output += porter.stem(word,0,len(word)-1)
 
-	#print(term+"___ "+output)
 	return output
 
 def return_xml(xml_filename):
@@ -275,7 +274,6 @@ def return_xml(xml_filename):
 	Lines = file.read()
 	lines = re.split('\n',Lines)
 	return lines
-
 
 
 START_TIME = time.time()
@@ -322,7 +320,7 @@ for file_name in collection:
 
 		for tag_block in tag_blocks:
 			tag_string = tag_block.get_text()
-			tag_term_list = re.split(' |,|\\.|\n|:|;|"|`|\'',tag_string)
+			tag_term_list = re.split(' |,|\\.|\n|:|;|"|`|\'|{{|}}|[|]|\)|\(',tag_string)
 			document_terms_list = document_terms_list + tag_term_list
 
 		for term in document_terms_list:
@@ -356,8 +354,4 @@ print("Total number of tokens: "+str(len(dictionary.keys())))
 print("Total number of documents: "+str(document_index-1))
 print("Total time taken: "+str(time.time()-START_TIME))
 
-#print_keys = list(dictionary.keys())
-#for index in [107,1007,1792,728,693]:
-#	print(dictionary[print_keys[index]])
-#	print('\n')
 

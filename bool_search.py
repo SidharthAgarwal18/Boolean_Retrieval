@@ -2,6 +2,48 @@ import sys
 import os
 import json
 import re
+from stemmar import PorterStemmer
+import time
+
+def intersection_of_lists(posting1,posting2):
+	intersection_posting = []
+
+	len1 = len(posting1)
+	start1 = 0
+	len2 = len(posting2)
+	start2 = 0
+
+	while(start1<len1 and start2<len2):
+
+		if(posting1[start1]==posting2[start2]):
+			intersection_posting.append(posting1[start1])
+			start1 += 1
+			start2 += 1
+
+		elif(posting1[start1]>posting2[start2]):
+			start2 += 1
+
+		else:
+			start1 += 1
+
+	return intersection_posting
+
+def stem_token(token,porter):
+	output = ''
+	word = ''
+
+	for char in token:
+		if char.isalpha():
+			word += char.lower()
+		else:
+			if word:
+				output += porter.stem(word,0,len(word)-1)
+				word = ''
+			output += char.lower()
+	if word:
+		output += porter.stem(word,0,len(word)-1)
+
+	return output
 
 def decode0(bytes_pointer,indexfile_name):
 
@@ -140,7 +182,7 @@ def decode3(bytes_pointer,indexfile_name):
 	return this_posting_list
 
 
-def parse_queries(queryfile_name):
+def parse_queries(queryfile_name,porter):
 
 	file = open(queryfile_name,'r')
 	query_list = []
@@ -148,9 +190,20 @@ def parse_queries(queryfile_name):
 	query_lines = re.split('\n',file.read())
 
 	for query in query_lines:
-		query_list.append(re.split(' ',query))
+		if query=="":
+			continue
+
+		this_query_list = re.split(' |,|\\.|\n|:|;|"|`|\'|{{|}}|[|]|\)|\(',query)
+		stemmed_query_list = []
+		
+		for this_query in this_query_list:
+			if this_query!= "":
+				stemmed_query_list.append(stem_token(this_query,porter))
+
+		query_list.append(stemmed_query_list)
 
 	file.close()
+	#print(query_list)
 	return query_list
 
 def binary_search(document_id,posting_list):
@@ -197,8 +250,8 @@ def decompress(term,comp_type,posting_dictionary,token_dictionary,indexfile_name
 def write_results(query_num,document_name,resultfile_name):
 	file = open(resultfile_name,"a")
 
-	file.write("Q"+str(query_num)+"\t")
-	file.write(str(document_name)+"\t")
+	file.write("Q"+str(query_num)+" ")
+	file.write(str(document_name)+" ")
 
 	if document_name != "NULL":
 		file.write(str(1.0)+"\n")
@@ -234,20 +287,24 @@ def answer_queries(query_list,comp_type,posting_dictionary,token_dictionary,inde
 
 		if(token_dictionary.get(query[0])==None):
 			null_query = True
-			write_results(query_num,"NULL",resultfile_name)
+			#write_results(query_num,query[0],resultfile_name)
 			continue
 
 		first_list = decompress(query[0],comp_type,posting_dictionary,token_dictionary,indexfile_name)
 
 		if(len(query)==1):
-			write_results(query_num,document_mapping[(first_list[0])],resultfile_name)
+
+			for document_idx in first_list:
+				write_results(query_num,document_mapping[(document_idx)],resultfile_name)
+
+			#write_results(query_num,document_mapping[(first_list[0])],resultfile_name)
 		else:
+
 			query_posting_lists = [first_list]
 			min_len = len(first_list)
 			min_list = first_list
 
 			for i in range(1,len(query)):
-
 				if(token_dictionary.get(query[i])==None):
 					null_query = True
 					break
@@ -260,9 +317,19 @@ def answer_queries(query_list,comp_type,posting_dictionary,token_dictionary,inde
 					min_len = len(temp_list)
 
 			if null_query:
-				write_results(query_num,"NULL",resultfile_name)
+				#write_results(query_num,query[i],resultfile_name)
 				continue
 
+			intersection_list = min_list
+
+			for this_qpl in query_posting_lists:
+				intersection_list = intersection_of_lists(intersection_list,this_qpl)
+
+			for document_idx in intersection_list:
+				write_results(query_num,document_mapping[document_idx],resultfile_name)
+			
+
+			"""
 			for document_id in min_list:
 				find_all = True
 
@@ -277,6 +344,8 @@ def answer_queries(query_list,comp_type,posting_dictionary,token_dictionary,inde
 
 			if not find_all:
 				write_results(query_num,"NULL",resultfile_name)
+			"""
+			
 
 
 
@@ -286,6 +355,8 @@ queryfile_name = sys.argv[1]
 resultfile_name = sys.argv[2]
 indexfile_name = sys.argv[3]
 dictfile_name = sys.argv[4]
+
+START_TIME = time.time()
 
 json_file = open(dictfile_name,"r")
 token_dictionary = json.load(json_file)
@@ -313,14 +384,14 @@ document_mapping = return_doc_mapping(file)
 file.close()
 
 
-query_list = parse_queries(queryfile_name)
+porter = PorterStemmer()
+query_list = parse_queries(queryfile_name,porter)
 
+print('Time for loading stuffs: '+str(time.time()-START_TIME))
+SECOND_TIME = time.time()
 answer_queries(query_list,comp_type,posting_dictionary,token_dictionary,new_indexfile_name,resultfile_name,document_mapping)
 
-#toke_dict_keys = list(token_dictionary.keys())
-#for i in [107,1007,1792,728,693]:
-#	print(decode3(token_dictionary[toke_dict_keys[i]],new_indexfile_name))
-#	print('\n')
+print('Time for answering queries: '+str(time.time()-SECOND_TIME))
 
 if(comp_type>2):
 	os.remove(indexfile_name+"_temp")
