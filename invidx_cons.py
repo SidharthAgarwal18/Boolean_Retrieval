@@ -322,7 +322,7 @@ for file_name in collection:
 
 		for tag_block in tag_blocks:
 			tag_string = tag_block.get_text()
-			tag_term_list = re.split(' |,|\\.|\n|:|;|"|`|\'|(|)|{|}|[|]',tag_string)
+			tag_term_list = re.split(' |,|\\.|\n|:|;|"|`|\'',tag_string)
 			document_terms_list = document_terms_list + tag_term_list
 
 		for term in document_terms_list:
