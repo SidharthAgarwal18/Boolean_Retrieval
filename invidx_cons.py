@@ -149,6 +149,31 @@ def encode2(previous_last,number,file):
 
 	return (temp_last,bytes_needed)
 
+def encode4(previous_last,number,file):
+
+	paramk = len(bin(number)[2:])
+
+	k_str = bin(paramk-1)[2:]
+
+	while(len(k_str)<5):
+		k_str = "0"+k_str
+
+	compressed_bin_str = previous_last + k_str + bin(number)[3:] # Last k-1 bits
+
+	bytes_needed = (len(compressed_bin_str)//8)
+	bits_left = (len(compressed_bin_str)%8)
+
+	if(bits_left==0):
+		temp_last = ""
+	else:
+		temp_last = compressed_bin_str[(len(compressed_bin_str)-bits_left):]
+		compressed_bin_str = compressed_bin_str[0:(len(compressed_bin_str)-bits_left)]
+
+	if compressed_bin_str!="":
+		file.write(int(compressed_bin_str,2).to_bytes(bytes_needed,byteorder='big'))
+
+	return (temp_last,bytes_needed)
+
 
 def compression2(dictionary,index_file_name,document_hash):
 
@@ -241,6 +266,56 @@ def compression3(dictionary,index_file_name,document_hash):
 	file.close()
 
 
+def compression4(dictionary,index_file_name,document_hash):
+	token_dictionary = {}
+	bytes_pointer = 0
+
+	file = open(index_file_name+'.idx','wb')
+	compression_type = 4
+	file.write(compression_type.to_bytes(1,byteorder='big'))
+
+	bytes_pointer += 1
+
+	bytes_pointer += map_documents(file,document_hash)
+
+	previous_last,temp_pointer = encode4("",len(dictionary.keys()),file)
+	bytes_pointer += temp_pointer
+
+	for index in (dictionary.keys()):
+
+		token_dictionary[index] = bytes_pointer
+
+		length = len(dictionary[index])
+		previous_last,temp_pointer = encode4(previous_last,length,file)
+		bytes_pointer += temp_pointer
+
+		previous = 0 							# gap encoding
+		for idx in dictionary[index]:
+
+			previous_last,temp_pointer = encode4(previous_last,idx-previous,file)
+			bytes_pointer += temp_pointer
+			previous = idx
+
+		if previous_last!="":
+
+			bits_left = 8 - len(previous_last)
+			final_bin = int(previous_last,2)
+			final_bin = final_bin<<bits_left
+
+			file.write(final_bin.to_bytes(1,byteorder='big'))
+
+			bytes_pointer += 1
+			previous_last = ""
+
+	file.close()
+
+	file = open(index_file_name+'.dict','w')
+	json.dump(token_dictionary,file)
+	file.close()
+
+
+
+
 def return_stopset(stoplist_path):
 	file = open(stoplist_path,"r")
 	Lines = file.read()
@@ -285,6 +360,10 @@ stopwords_set = return_stopset(sys.argv[3]) if num_arguments>=4 else []
 compression = int(sys.argv[4])
 xml_tags = return_xml(sys.argv[5]) if num_arguments>=6 else ["DOCNO","HEAD","TEXT"]
 
+if(compression==5):
+	print("not implemented")
+	sys.exit()
+
 porter = PorterStemmer()
 
 document_index = 1
@@ -320,7 +399,7 @@ for file_name in collection:
 
 		for tag_block in tag_blocks:
 			tag_string = tag_block.get_text()
-			tag_term_list = re.split(' |,|\\.|\n|:|;|"|`|\'|{{|}}|[|]|\)|\(',tag_string)
+			tag_term_list = re.split(' |,|\\.|\n|:|;|"|\'|{{|}}|[|]|\)|\(',tag_string)
 			document_terms_list = document_terms_list + tag_term_list
 
 		for term in document_terms_list:
@@ -349,7 +428,7 @@ elif(compression==2):
 	compression2(dictionary,index_file_name,document_hash)
 elif(compression==3):
 	compression3(dictionary,index_file_name,document_hash)
-elif(compression4):
+elif(compression==4):
 	compression4(dictionary,index_file_name,document_hash)
 else:
 	print("not implemented")
@@ -358,5 +437,3 @@ else:
 print("Total number of tokens: "+str(len(dictionary.keys())))
 print("Total number of documents: "+str(document_index-1))
 print("Total time taken: "+str(time.time()-START_TIME))
-
-

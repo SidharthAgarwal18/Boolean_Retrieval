@@ -181,6 +181,45 @@ def decode3(bytes_pointer,indexfile_name):
 	file.close()
 	return this_posting_list
 
+def decode4_next(file,new_first):
+
+	if(len(new_first)<5):
+		new_first += extend_strbyte(bin(int.from_bytes(file.read(1),byteorder='big'))[2:])
+	
+	k_str = new_first[0:5]
+	num_str = new_first[5:]
+
+	k_bits = int(k_str,2)
+	if(k_bits==0):
+		return 1,num_str
+
+	while(len(num_str)<k_bits):
+		num_str += extend_strbyte(bin(int.from_bytes(file.read(1),byteorder='big'))[2:])
+
+	number_str = num_str[0:k_bits]
+	remain_str = num_str[k_bits:]
+
+	return int(number_str,2) + (1<<k_bits),remain_str
+	
+
+
+def decode4(bytes_pointer,indexfile_name):
+
+	file = open(indexfile_name,"rb")
+	file.seek(bytes_pointer,0)
+
+	list_len, new_first = decode4_next(file,"")
+	this_posting_list = []
+
+	previous = 0
+	for idx in range(list_len):
+
+		document_id, new_first = decode4_next(file,new_first)
+		this_posting_list.append(document_id+previous)
+		previous = document_id + previous
+
+	file.close()
+	return this_posting_list
 
 def parse_queries(queryfile_name,porter):
 
@@ -242,6 +281,8 @@ def decompress(term,comp_type,posting_dictionary,token_dictionary,indexfile_name
 		posting_dictionary[term] = decode1(bytes_pointer,indexfile_name)
 	elif(comp_type==2):
 		posting_dictionary[term] = decode2(bytes_pointer,indexfile_name)
+	elif(comp_type==4):
+		posting_dictionary[term] = decode4(bytes_pointer,indexfile_name)
 	else:
 		posting_dictionary[term] = decode3(bytes_pointer,indexfile_name)
 
@@ -369,7 +410,7 @@ file = open(indexfile_name,"rb")
 comp_type = int.from_bytes(file.read(1),byteorder='big')
 new_indexfile_name = indexfile_name
 
-if(comp_type>2):
+if(comp_type>2 and comp_type!=4):
 	comp_type = 3
 
 	file.close()
@@ -393,5 +434,5 @@ answer_queries(query_list,comp_type,posting_dictionary,token_dictionary,new_inde
 
 print('Time for answering queries: '+str(time.time()-SECOND_TIME))
 
-if(comp_type>2):
+if(comp_type>2 and comp_type!=4):
 	os.remove(indexfile_name+"_temp")
