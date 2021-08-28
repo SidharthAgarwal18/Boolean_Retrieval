@@ -1,5 +1,6 @@
 # Boolean Retrieval System
-This program is an implementation of the boolean retrieval system in python. It allows user to test 3 types of compression of the index_list, remove stopwords, stem the terms and query both single and multi-keywords retrieval, over a collection of xml documents.
+This program is an implementation of the boolean retrieval system in python. It allows user to test 3 types of compression of the index_list, remove stopwords, stem the terms and query both single and multi-keywords retrieval, over a collection of xml documents. You can find complete problem statement here in `AssignmentDescription.pdf` and my report on the results in `2019CS50661.pdf` here
+ 
 
 ## Libraries Needed
 * BeautifulSoup4, install via `pip install beautifulsoup4`

@@ -349,6 +349,11 @@ elif(compression==2):
 	compression2(dictionary,index_file_name,document_hash)
 elif(compression==3):
 	compression3(dictionary,index_file_name,document_hash)
+elif(compression4):
+	compression4(dictionary,index_file_name,document_hash)
+else:
+	print("not implemented")
+
 
 print("Total number of tokens: "+str(len(dictionary.keys())))
 print("Total number of documents: "+str(document_index-1))
