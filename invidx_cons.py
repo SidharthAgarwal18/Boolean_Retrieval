@@ -191,6 +191,7 @@ def compression2(dictionary,index_file_name,document_hash):
 	previous_last,temp_pointer = encode2("",len(dictionary.keys()),file)
 	bytes_pointer += temp_pointer
 
+	previous_last = ""
 	for index in (dictionary.keys()):
 
 		token_dictionary[index] = bytes_pointer
@@ -198,6 +199,16 @@ def compression2(dictionary,index_file_name,document_hash):
 		length = len(dictionary[index])
 		previous_last,temp_pointer = encode2(previous_last,length,file)
 		bytes_pointer += temp_pointer
+
+		if previous_last!="":
+			bits_left = 8 - len(previous_last)
+			final_bin = int(previous_last,2)
+			final_bin = final_bin<<bits_left
+
+			file.write(final_bin.to_bytes(1,byteorder='big'))
+
+			bytes_pointer += 1
+			previous_last = ""
 
 		previous = 0 							# gap encoding
 		for idx in dictionary[index]:
@@ -281,6 +292,8 @@ def compression4(dictionary,index_file_name,document_hash):
 	previous_last,temp_pointer = encode4("",len(dictionary.keys()),file)
 	bytes_pointer += temp_pointer
 
+	previous_last = ""
+
 	for index in (dictionary.keys()):
 
 		token_dictionary[index] = bytes_pointer
@@ -288,6 +301,17 @@ def compression4(dictionary,index_file_name,document_hash):
 		length = len(dictionary[index])
 		previous_last,temp_pointer = encode4(previous_last,length,file)
 		bytes_pointer += temp_pointer
+
+		if previous_last!="":
+
+			bits_left = 8 - len(previous_last)
+			final_bin = int(previous_last,2)
+			final_bin = final_bin<<bits_left
+
+			file.write(final_bin.to_bytes(1,byteorder='big'))
+
+			bytes_pointer += 1
+			previous_last = ""
 
 		previous = 0 							# gap encoding
 		for idx in dictionary[index]:
@@ -350,15 +374,216 @@ def return_xml(xml_filename):
 	lines = re.split('\n',Lines)
 	return lines
 
+def extend_strbyte(small_str):
+	x = 8 - len(small_str)
+
+	new_str = ""
+	for index in range(x):
+		new_str += "0"
+
+	new_str += small_str
+	return new_str
+
+def ENCODE(new_file,value,str_last,comp_type):
+
+	if(comp_type==0 or comp_type==3):
+		new_file.write(value.to_bytes(4,byteorder='big'))
+		return 4,""
+
+	if(comp_type==1):
+		bytes_used_here = encode1(value,new_file)
+		return bytes_used_here,""
+
+	if(comp_type==2):
+		str_last,bytes_used_here = encode2(str_last,value,new_file)
+		return bytes_used_here,str_last
+
+	str_last,bytes_used_here = encode4(str_last,value,new_file)
+	return bytes_used_here,str_last
+
+def merge_dictionaries(prev_filename,previous_dictionary,curr_dictionary,new_filename,comp_type):
+
+	new_dictionary = {}
+	new_bytes_pointer = 0
+	new_bytes_used = 0
+
+	new_file = open(new_filename,"wb")
+
+	if prev_filename!=None:
+		prev_file = open(prev_filename,"rb")
+
+	for key in previous_dictionary.keys():
+
+		pointer_start = previous_dictionary[key][0]
+		bytes_used = previous_dictionary[key][1]
+		bits_used = previous_dictionary[key][2]
+		last_doc = previous_dictionary[key][3]
+		length_list = previous_dictionary[key][4]
+
+		prev_file.seek(pointer_start,0)
+
+		if (comp_type==2 or comp_type==4) and bits_used!=0:
+
+			if bytes_used>1:
+				prev_posting_list = prev_file.read(bytes_used-1)
+				new_file.write(prev_posting_list)
+
+			str_last = extend_strbyte(bin(int.from_bytes(prev_file.read(1),byteorder='big'))[2:])
+			str_last = str_last[0:bits_used]
+
+			new_bytes_used += (bytes_used - 1)
+		else:
+			prev_posting_list = prev_file.read(bytes_used)
+			new_file.write(prev_posting_list)
+
+			str_last = ""
+			new_bytes_used += bytes_used
+
+		if(curr_dictionary.get(key)):
+
+			for value in curr_dictionary[key]:
+
+				temp_bytes,str_last = ENCODE(new_file,(value-last_doc),str_last,comp_type)
+				new_bytes_used += temp_bytes
+				last_doc = value if comp_type!=0 else 0
+				length_list += 1
+		
+		bits_used = len(str_last)
+		if str_last!="":
+			bits_left = 8 - bits_used
+
+			final_bin = int(str_last,2)
+			final_bin = final_bin<<bits_left
+
+			new_file.write(final_bin.to_bytes(1,byteorder='big'))
+
+			new_bytes_used += 1
+			str_last = ""
+
+		new_dictionary[key] = [new_bytes_pointer,new_bytes_used,bits_used,last_doc,length_list]
+		new_bytes_pointer += new_bytes_used
+		new_bytes_used = 0
+
+	for key in curr_dictionary.keys():
+
+		if(previous_dictionary.get(key)==None):
+
+			new_bytes_used = 0
+			str_last = ""
+			length_list = 0
+			last_doc = 0
+
+			for value in curr_dictionary[key]:
+
+				temp_bytes,str_last = ENCODE(new_file,(value-last_doc),str_last,comp_type)
+				new_bytes_used += temp_bytes
+				last_doc = value if comp_type!=0 else 0
+				length_list += 1
+
+			bits_used = len(str_last)
+
+			if(bits_used!=0):
+
+				bits_left = 8 - len(str_last)
+				final_bin = int(str_last,2)
+				final_bin = final_bin<<bits_left
+
+				new_file.write(final_bin.to_bytes(1,byteorder='big'))
+
+				new_bytes_used += 1
+				str_last = ""
+
+			new_dictionary[key] = [new_bytes_pointer,new_bytes_used,bits_used,last_doc,length_list]
+			new_bytes_pointer += new_bytes_used
+			new_bytes_used = 0
+
+	previous_dictionary.clear()
+	curr_dictionary.clear()
+	new_file.close()
+
+	del previous_dictionary
+	del curr_dictionary
+
+	if(prev_filename!=None):
+		prev_file.close()
+		os.remove(prev_filename)
+
+	return new_dictionary
+
+def final_disk_write(previous_dictionary,index_file_name,counter,document_hash,compression):
+	
+	token_dictionary = {}
+	bytes_pointer = 0
+	str_last = ""
+
+	if compression==3:
+		final_file = open(index_file_name+'_temp.idx',"wb")
+	else:
+		final_file = open(index_file_name+'.idx',"wb")
+
+	final_file.write(compression.to_bytes(1,byteorder='big'))
+	bytes_pointer += 1
+
+	bytes_pointer += map_documents(final_file,document_hash)
+
+	temp_bytes,str_last = ENCODE(final_file,len(previous_dictionary.keys()),str_last,compression)
+	bytes_pointer += temp_bytes
+
+	prev_file = open(index_file_name+str(counter),"rb")
+	str_last = ""
+
+	for key in previous_dictionary.keys():
+
+		token_dictionary[key] = bytes_pointer
+		list_length = previous_dictionary[key][4]
+
+		temp_bytes,str_last = ENCODE(final_file,list_length,str_last,compression)
+		bytes_pointer += temp_bytes
+
+		if str_last!="":
+			bits_used = len(str_last)
+			bits_left = 8 - bits_used
+
+			final_bin = int(str_last,2)
+			final_bin = final_bin<<bits_left
+
+			final_file.write(final_bin.to_bytes(1,byteorder='big'))
+
+			bytes_pointer += 1
+			str_last = ""
+
+		prev_bytes_pointer = previous_dictionary[key][0]
+		prev_bytes_used = previous_dictionary[key][1]
+		prev_file.seek(prev_bytes_pointer,0)
+
+		prev_byte_str = prev_file.read(prev_bytes_used)
+		final_file.write(prev_byte_str)
+
+		bytes_pointer += prev_bytes_used
+
+	final_file.close()
+	prev_file.close()
+
+	os.remove(index_file_name+str(counter))
+
+	if(compression==3):
+		os.system("python -m snappy -c "+index_file_name+"_temp.idx "+index_file_name+".idx")
+		os.remove(index_file_name+"_temp.idx")
+
+	file = open(index_file_name+'.dict','w')
+	json.dump(token_dictionary,file)
+	file.close()
+
 
 START_TIME = time.time()
 
 num_arguments = len(sys.argv)
 collection_path = sys.argv[1]				# 0th index argument is .py filename
 index_file_name = sys.argv[2]
-stopwords_set = return_stopset(sys.argv[3]) if num_arguments>=4 else []
+stopwords_set = return_stopset(sys.argv[3])
 compression = int(sys.argv[4])
-xml_tags = return_xml(sys.argv[5]) if num_arguments>=6 else ["DOCNO","HEAD","TEXT"]
+xml_tags = return_xml(sys.argv[5])
+once_memory_overloaded = False
 
 if(compression==5):
 	print("not implemented")
@@ -372,6 +597,9 @@ dictionary = {}
 
 collection = os.listdir(collection_path)
 
+previous_dictionary = {}
+previous_filename = None
+counter = 0
 
 for file_name in collection:
 
@@ -399,9 +627,10 @@ for file_name in collection:
 
 		for tag_block in tag_blocks:
 			tag_string = tag_block.get_text()
-			tag_term_list = re.split(' |,|\\.|\n|:|;|"|\'|{{|}}|[|]|\)|\(',tag_string)
+			tag_term_list = re.split(' |,|\\.|\n|:|;|"|\'|`|{{|}}|[|]|\)|\(',tag_string)
 			document_terms_list = document_terms_list + tag_term_list
 
+		first = True
 		for term in document_terms_list:
 
 			if(term not in stopwords_set and term!=""):
@@ -414,13 +643,32 @@ for file_name in collection:
 				elif(dictionary[term][-1]!=document_index):
 					dictionary[term].append(document_index)
 
+				memory_overload = first and (document_index%27000==0)
+				if(memory_overload):
+
+					print('External merging initiated')
+					once_memory_overloaded = True
+					previous_dictionary = merge_dictionaries(previous_filename,previous_dictionary,dictionary,index_file_name+str((counter+1)%2),compression)
+					counter = (counter + 1)%2
+					previous_filename = index_file_name + str(counter)
+					print('External merging finished')
+					first = False
+
+					dictionary = {}
+
 		document_index += 1
 
 	file.close()
 
 print("Time for reading files: "+str(time.time()-START_TIME))
 
-if(compression==0):
+if(once_memory_overloaded):
+	print('External merging initiated')
+	previous_dictionary = merge_dictionaries(previous_filename,previous_dictionary,dictionary,index_file_name+str((counter+1)%2),compression)
+	print('External merging finished')
+	counter = (counter+1)%2
+	final_disk_write(previous_dictionary,index_file_name,counter,document_hash,compression)
+elif(compression==0):
 	compression0(dictionary,index_file_name,document_hash)
 elif(compression==1):
 	compression1(dictionary,index_file_name,document_hash)

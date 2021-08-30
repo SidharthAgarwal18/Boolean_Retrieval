@@ -154,6 +154,7 @@ def decode2(bytes_pointer,indexfile_name):
 	this_posting_list = []
 
 	previous = 0
+	new_first = ""
 	for idx in range(list_len):
 
 		document_id, new_first = decode2_next(file,new_first)
@@ -212,6 +213,7 @@ def decode4(bytes_pointer,indexfile_name):
 	this_posting_list = []
 
 	previous = 0
+	new_first = ""
 	for idx in range(list_len):
 
 		document_id, new_first = decode4_next(file,new_first)
@@ -232,7 +234,7 @@ def parse_queries(queryfile_name,porter):
 		if query=="":
 			continue
 
-		this_query_list = re.split(' |,|\\.|\n|:|;|"|`|\'|{{|}}|[|]|\)|\(',query)
+		this_query_list = re.split(' |,|\\.|\n|:|;|"|\'|`|{{|}}|[|]|\)|\(',query)
 		stemmed_query_list = []
 		
 		for this_query in this_query_list:
@@ -291,8 +293,8 @@ def decompress(term,comp_type,posting_dictionary,token_dictionary,indexfile_name
 def write_results(query_num,document_name,resultfile_name):
 	file = open(resultfile_name,"a")
 
-	file.write("Q"+str(query_num)+" ")
-	file.write(str(document_name)+" ")
+	file.write("Q"+str(query_num))
+	file.write(str(document_name))
 
 	if document_name != "NULL":
 		file.write(str(1.0)+"\n")
