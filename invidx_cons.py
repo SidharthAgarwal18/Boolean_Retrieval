@@ -603,7 +603,7 @@ counter = 0
 
 for file_name in collection:
 
-	file = open(collection_path+file_name,"r")
+	file = open(os.path.join(collection_path,file_name),"r")
 	file_string = file.read()
 
 	documents = re.split("</DOC>",file_string)
@@ -643,15 +643,15 @@ for file_name in collection:
 				elif(dictionary[term][-1]!=document_index):
 					dictionary[term].append(document_index)
 
-				memory_overload = first and (document_index%27000==0)
+				memory_overload = first and (document_index%100000==0)
 				if(memory_overload):
 
-					print('External merging initiated')
+					#print('External merging initiated')
 					once_memory_overloaded = True
 					previous_dictionary = merge_dictionaries(previous_filename,previous_dictionary,dictionary,index_file_name+str((counter+1)%2),compression)
 					counter = (counter + 1)%2
 					previous_filename = index_file_name + str(counter)
-					print('External merging finished')
+					#print('External merging finished')
 					first = False
 
 					dictionary = {}
@@ -660,12 +660,12 @@ for file_name in collection:
 
 	file.close()
 
-print("Time for reading files: "+str(time.time()-START_TIME))
+#print("Time for reading files: "+str(time.time()-START_TIME))
 
 if(once_memory_overloaded):
-	print('External merging initiated')
+	#print('External merging initiated')
 	previous_dictionary = merge_dictionaries(previous_filename,previous_dictionary,dictionary,index_file_name+str((counter+1)%2),compression)
-	print('External merging finished')
+	#print('External merging finished')
 	counter = (counter+1)%2
 	final_disk_write(previous_dictionary,index_file_name,counter,document_hash,compression)
 elif(compression==0):
@@ -682,6 +682,6 @@ else:
 	print("not implemented")
 
 
-print("Total number of tokens: "+str(len(dictionary.keys())))
-print("Total number of documents: "+str(document_index-1))
-print("Total time taken: "+str(time.time()-START_TIME))
+#print("Total number of tokens: "+str(len(dictionary.keys())))
+#print("Total number of documents: "+str(document_index-1))
+#print("Total time taken: "+str(time.time()-START_TIME))

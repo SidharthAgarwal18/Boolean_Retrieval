@@ -430,11 +430,11 @@ file.close()
 porter = PorterStemmer()
 query_list = parse_queries(queryfile_name,porter)
 
-print('Time for loading stuffs: '+str(time.time()-START_TIME))
+#print('Time for loading stuffs: '+str(time.time()-START_TIME))
 SECOND_TIME = time.time()
 answer_queries(query_list,comp_type,posting_dictionary,token_dictionary,new_indexfile_name,resultfile_name,document_mapping)
 
-print('Time for answering queries: '+str(time.time()-SECOND_TIME))
+#print('Time for answering queries: '+str(time.time()-SECOND_TIME))
 
 if(comp_type>2 and comp_type!=4):
 	os.remove(indexfile_name+"_temp")
